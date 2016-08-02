@@ -30,7 +30,7 @@ def importwebCSV():
     for row in reader:
         if line != 0:
             datetime.append(row[0])
-            cpm.append(float(row[1]))
+            cpm.append(float(row[6]))
         line += 1    # Python syntax for line = line + 1 (+1 to current stored value for line)
     print(datetime,cpm)
     # This example typifies the overwhelming amount of data that you can handle with Python!  In only a few seconds, this script can record over 60,000 data points in your computer's memory.
