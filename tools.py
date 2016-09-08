@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Brian Plimley, 2016-04-26
+# Brian Plimley, 2016-09-08
 # Tools for analyzing and plotting DoseNet data.
 
 from __future__ import print_function
@@ -41,30 +41,13 @@ def parse_csv_object(filelike_object):
     reader = csv.DictReader(filelike_object)
 
     time_format = '%Y-%m-%d %H:%M:%S'
-    ts_key = 'deviceTime_local'     # FIX ME to UTC or unix
-    ts_trailing_strip_len = 6   # the CSV data includes e.g. +02:00
 
     ts = np.array([], dtype=float)
     cpm = np.array([], dtype=float)
     cpm_err = np.array([], dtype=float)
 
     for row in reader:
-        try:
-            this_datetime = datetime.strptime(
-                row[ts_key][:-ts_trailing_strip_len],
-                time_format)
-        except KeyError:
-            if 'deviceTime' in row:
-                ts_key = 'deviceTime'
-                ts_trailing_strip_len = 0
-            elif 'receiveTime' in row:
-                ts_key = 'receiveTime'
-                ts_trailing_strip_len = 0
-            else:
-                raise
-            this_datetime = datetime.strptime(
-                row[ts_key][:-ts_trailing_strip_len],
-                time_format)
+        this_datetime = datetime.strptime(row['receiveTime'], time_format)
         ts = np.append(ts, (this_datetime - epoch_time).total_seconds())
         cpm = np.append(cpm, float(row['cpm']))
         cpm_err = np.append(cpm_err, float(row['cpmError']))
@@ -118,10 +101,3 @@ def check_data_reliability(ts):
             epoch_time + timedelta(seconds=ts[i]),
             epoch_time + timedelta(seconds=ts[i+1]),
             dt[i]))
-
-
-if __name__ == '__main__':
-    # tests
-
-    # test get_dosenet_csv_data and plot
-    plot(*get_dosenet_csv_data('lbl'))
