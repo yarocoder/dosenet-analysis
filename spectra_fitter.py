@@ -14,6 +14,9 @@ from scipy import optimize
 from scipy import asarray as ar,exp
 from scipy.integrate import quad
 
+#--------------------------------------------------------------------------#
+# Fit Functions
+#--------------------------------------------------------------------------#
 def lbound(bound,par):
     return 1e4*np.sqrt(bound-par) + 1e-3*(bound-par) if (par<bound) else 0
 
@@ -46,6 +49,9 @@ def double_gaus_plus_exp(x,p):
 def double_gaus_plus_line(x,p):
     return gaus(x,p[0],p[1],p[2])+gaus(x,p[3],p[4],p[5])+p[6]*x+p[7]
 
+#--------------------------------------------------------------------------#
+# Process input data
+#--------------------------------------------------------------------------#
 def make_int(lst): 
     '''
     Makes all entries of a list an integer
@@ -64,6 +70,17 @@ def make_array(lst):
     return y
 
 def get_times(rows, number, n=1):
+    '''
+    Get list of times for data: determines time as the midpoint between the upper and lower bounds in the integration window
+
+    Arguments:
+      - full list of inputs from data csv
+      - number of days to collect data over
+      - number of hours to integrate over
+
+    Returns:
+      - list of times
+    '''
     entries = 12*n
     days = (24/n)
     i = 0
@@ -87,20 +104,41 @@ def get_times(rows, number, n=1):
     return times
 
 def double_peak_finder(array,lower,upper):
+    '''
+    Fits double gaussian + exponential to data within some window
+      - fit is applied only to data within the upper/lower channel 
+        boundaries provided as inputs
+
+    Arguments:
+      - full array of data
+      - lower and upper channel values for the fit window
+
+    Returns:
+      - list of fit parameters and list of parameter errors
+    '''
     points = ar(range(lower,upper))
     peak = list(array[lower:upper])
     counts = ar(peak)
 
+    # Initialize fit parameters based on rough estimates of mean,sigma,amp,etc.
+    #  - mean estimated as center of fit window - set window accordingly
+    #    - double gaussian means shifted slightly in each direction
+    #  - gaussian amp and expo shift estimated based on counts at left edge
+    #  - expo slope determined using fit window boundaries 
     nentries = len(points)
     mean = lower + (upper - lower)/2.0
     slope = 2*(np.log(counts[-1])-np.log(counts[0]))/(points[-1]-points[0])
     pinit = [counts[0]/5.0,mean-2,5.0,counts[0]/5.0,mean+2,5.0,counts[0],slope]
 
+    # Currently using leastsq fit from scipy
+    #   - see scipy documentation for more information
     errfunc = lambda p, x, y: double_gaus_plus_exp(x,p) - y 
     pfit,pcov,infodict,errmsg,success = \
         optimize.leastsq(errfunc, pinit, args=(points,counts), \
             full_output=1, epsfcn=0.0001)
 
+    # Calculate fit parameter uncertainties using the covariance matrix
+    #  and the (fit - data) variance
     if (len(counts) > len(pinit)) and pcov is not None:
         s_sq = (errfunc(pfit, points, counts)**2).sum()/(len(counts)-len(pinit))
         pcov = pcov * s_sq
@@ -110,6 +148,8 @@ def double_peak_finder(array,lower,upper):
     error = [] 
     for i in range(len(pfit)):
         try:
+          # This conditional is bad!! 
+          # Artificially sets error to zero if it's too big - remove now!
           if np.absolute(pcov[i][i])**0.5 > np.absolute(pfit[i]):
             error.append( 0.00 )
           else:
@@ -120,24 +160,43 @@ def double_peak_finder(array,lower,upper):
     perr_leastsq = np.array(error) 
     return pfit_leastsq, perr_leastsq 
 
+
 def peak_finder(array,lower,upper,count_offset): 
     '''
-    Peak Finder for Potassium. Needs more development
+    Fits gaussian + exponential to data within some window
+      - fit is applied only to data within the upper/lower channel 
+        boundaries provided as inputs
+
+    Arguments:
+      - full array of data
+      - lower and upper channel values for the fit window
+      - count_offset used to correct exponential fit parameter for the fact that the fit is not starting at the left edge of the spectrum
+
+    Returns:
+      - list of fit parameters and list of parameter errors
     '''
     points = ar(range(lower,upper))
     peak = list(array[lower:upper])
     counts = ar(peak)
 
+    # Initialize fit parameters based on rough estimates of mean,sigma,amp,etc.
+    #  - mean estimated as center of fit window - set window accordingly
+    #  - gaussian amp and expo shift estimated based on counts at left edge
+    #  - expo slope determined using fit window boundaries 
     nentries = len(points)
     mean = lower + (upper - lower)/2.0
     slope = 2*(np.log(counts[-1])-np.log(counts[0]))/(points[-1]-points[0])
     pinit = [counts[0]/2.0,mean,5.0,counts[0]*count_offset,slope]
 
+    # Currently using leastsq fit from scipy
+    #   - see scipy documentation for more information
     errfunc = lambda p, x, y: gaus_plus_exp(x,p) - y 
     pfit,pcov,infodict,errmsg,success = \
         optimize.leastsq(errfunc, pinit, args=(points,counts), \
             full_output=1, epsfcn=0.0001)
 
+    # Calculate fit parameter uncertainties using the covariance matrix
+    #  and the (fit - data) variance
     if (len(counts) > len(pinit)) and pcov is not None:
         s_sq = (errfunc(pfit, points, counts)**2).sum()/(len(counts)-len(pinit))
         pcov = pcov * s_sq
@@ -155,6 +214,21 @@ def peak_finder(array,lower,upper,count_offset):
     return pfit_leastsq, perr_leastsq 
 
 def get_double_peaks(rows, number, n=1, lower_limit=240, upper_limit=300, make_plot = False):
+    '''
+    Applies double gaussian + expo fits to all data over some range of time
+
+    Arguments:
+      - full list of csv data input rows
+      - number of days to run over
+      - number of hours to integrate each calculation over
+      - lower,upper limits for fit windows
+      - flag to plot each fit for diagnostics
+
+    Returns:
+      - list of means,sigmas,amps for second gaussian in fit 
+        - that's the Bi peak, so this is hard coded to work for a specific case
+        - each entry in list includes the value and uncertainty
+    '''
     entries = 12*n
     days = (24/n)
     i = 0
@@ -206,10 +280,20 @@ def get_double_peaks(rows, number, n=1, lower_limit=240, upper_limit=300, make_p
 
 def get_peaks(rows, number=1, n=1, lower_limit=240, upper_limit=300, make_plot = False,count_offset=100): 
     '''
-    Gets single gaussian peaks in the specified window
-    number is the number of days of spectras to go through
-    n is the number of hours that each spectra is integrated over 
-    lower_limit, upper_limit set the window to look for a peak inside
+    Applies double gaussian + expo fits to all data over some range of time
+
+    Arguments:
+      - full list of csv data input rows
+      - number of days to run over
+      - number of hours to integrate each calculation over
+      - lower,upper limits for fit windows
+      - flag to plot each fit for diagnostics
+      - count offset correction to fit parameters based on peak position
+          (peaks farther from the left edge of spectrum need bigger correction)
+
+    Returns:
+      - lists of means,sigmas,amps from all gaussian fits
+        - each entry in list includes the value and uncertainty
     '''
     entries = 12*n
     days = (24/n)
@@ -254,7 +338,13 @@ def get_peaks(rows, number=1, n=1, lower_limit=240, upper_limit=300, make_plot =
     counter = 0
     return means,sigmas,amps
 
+#--------------------------------------------------------------------------#
+# Methods for performing calculations on fit results
+#--------------------------------------------------------------------------#
 def get_mean(values):
+    '''
+    Calculate the mean and sigma for some input array of data
+    '''
     mean = 0
     var = 0
     for i in range(len(values)):
@@ -269,6 +359,17 @@ def get_mean(values):
     return mean, var
 
 def get_peak_counts(means,sigmas,amps):
+    '''
+    Calculate the area under a gaussian curve (estimate of counts in that peak)
+
+    Arguments:
+      - list of guassian means
+      - list of guassian widths
+      - list of gaussian amplitudes
+
+    Returns:
+      - list of counts from resulting gaussian integrations 
+    '''
     counts = []
     for i in range(len(means)):
         count,err = quad(gaus,0,500,args=(amps[i],means[i],sigmas[i]))
@@ -276,6 +377,12 @@ def get_peak_counts(means,sigmas,amps):
     return counts
 
 def get_calibration(rows,ndays):
+    '''
+    Specific method for getting the data calibration assuming Bi-214 is part
+    of a double peak and fitting data integrated over a day not an hour
+
+    Returns a single calibration constant
+    '''
     Bi_peaks, Bi_sigmas, Bi_amps = get_double_peaks(rows,ndays,24,80,160,True)
     K_peaks,K_errs = get_peaks(rows,ndays,24,220,320)
 
@@ -296,8 +403,8 @@ if __name__ == '__main__':
     cpm = []
     cpm_error = []
     line = 0
-    url = 'https://radwatch.berkeley.edu/sites/default/files/dosenet/lbl_outside_d3s.csv'
-    #url = 'https://radwatch.berkeley.edu/sites/default/files/dosenet/etch_roof_d3s.csv'
+    #url = 'https://radwatch.berkeley.edu/sites/default/files/dosenet/lbl_outside_d3s.csv'
+    url = 'https://radwatch.berkeley.edu/sites/default/files/dosenet/etch_roof_d3s.csv'
     print(url)
     response = urllib2.urlopen(url)
     print(response)
@@ -315,28 +422,45 @@ if __name__ == '__main__':
 
     #get_calibration(rows,5)
 
-    ndays = 2
+    #---------------------------------------------------------------------#
+    # Get fit results for ndays integrating over nhours for each fit
+    #---------------------------------------------------------------------#
+    ndays = 7
     nhours = 1
     times = get_times(rows,ndays,nhours)
     K_peaks, K_sigmas, K_amps = get_peaks(rows,ndays,nhours,220,320)
+    #Bi_peaks,Bi_sigmas,Bi_amps = get_double_peaks(rows,ndays,nhours,80,160)
+    Bi_peaks,Bi_sigmas,Bi_amps = get_peaks(rows,ndays,nhours,82,162,False,1)
+
+    #-------------------------------------------------------------------------#
+    # Break apart mean,sigma,amp values and uncertainties
+    #-------------------------------------------------------------------------#
     K_ch = np.asarray([i[0] for i in K_peaks])
     K_ch_errs = np.asarray([i[1] for i in K_peaks])
     K_sig = [i[0] for i in K_sigmas]
     K_A = [i[0] for i in K_amps]
-    K_counts = get_peak_counts(K_ch,K_sig,K_A)
-
-    Bi_peaks,Bi_sigmas,Bi_amps = get_double_peaks(rows,ndays,nhours,80,160)
-    #Bi_peaks,Bi_sigmas,Bi_amps = get_peaks(rows,ndays,nhours,82,162,False,1)
     Bi_ch = np.asarray([i[0] for i in Bi_peaks])
     Bi_ch_errs = np.asarray([i[1] for i in Bi_peaks])
     Bi_sig = [i[0] for i in Bi_sigmas]
     Bi_A = [i[0] for i in Bi_amps]
+
+
+    #-------------------------------------------------------------------------#
+    # Get arrays of counts inside K-40 and Bi-214 peaks using fit results
+    #-------------------------------------------------------------------------#
+    K_counts = get_peak_counts(K_ch,K_sig,K_A)
     Bi_counts = get_peak_counts(Bi_ch,Bi_sig,Bi_A)
 
+    #-------------------------------------------------------------------------#
+    # Get array of calibration constants from resulting K-40 and Bi-214 means
+    #-------------------------------------------------------------------------#
     calibs = (1460-609)/(K_ch - Bi_ch)
     calib_err = (1460-609)/(K_ch - Bi_ch)**2 \
         *np.sqrt(Bi_ch_errs**2 + K_ch_errs**2)
 
+    #-------------------------------------------------------------------------#
+    # Plots of everything we are interested in!
+    #-------------------------------------------------------------------------#
     fig, ax = plt.subplots()
     fig.patch.set_facecolor('white')
     plt.title('K-40 counts vs Time')
@@ -354,12 +478,6 @@ if __name__ == '__main__':
     ax.plot(times,Bi_counts, 'ro')
     ax.errorbar(times,Bi_counts,yerr=np.sqrt(Bi_counts),fmt='ro',ecolor='r')
     plt.show()
-
-    Bi_mean, Bi_var = get_mean(np.asarray(Bi_counts))
-    print('Bi-214 <N> = {} +/- {}'.format(Bi_mean,Bi_var))
-
-    K_mean, K_var = get_mean(np.asarray(K_counts))
-    print('K-40 <N> = {} +/- {}'.format(K_mean,K_var))
 
     fig, ax = plt.subplots()
     fig.patch.set_facecolor('white')
@@ -389,4 +507,11 @@ if __name__ == '__main__':
     ax.plot(times,calibs, 'bo')
     ax.errorbar(times,calibs,yerr=calib_err,fmt='bo',ecolor='b')
     plt.show()
+
+    # Finally: interested in how much the count rates vary for the two isotopes
+    Bi_mean, Bi_var = get_mean(np.asarray(Bi_counts))
+    print('Bi-214 <N> = {} +/- {}'.format(Bi_mean,Bi_var))
+
+    K_mean, K_var = get_mean(np.asarray(K_counts))
+    print('K-40 <N> = {} +/- {}'.format(K_mean,K_var))
 
