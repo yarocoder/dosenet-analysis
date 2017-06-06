@@ -444,6 +444,17 @@ if __name__ == '__main__':
     Bi_sig = [i[0] for i in Bi_sigmas]
     Bi_A = [i[0] for i in Bi_amps]
 
+    K_ch_ave = np.mean(K_ch)
+    K_ch_var = np.sqrt(np.var(K_ch))
+    B_ch_ave = np.mean(Bi_ch)
+    B_ch_var = np.sqrt(np.var(Bi_ch))
+    print('K-40 <channel> = {} +/- {}'.format(K_ch_ave,K_ch_var))
+    print('Bi-214 <channel> = {} +/- {}'.format(B_ch_ave,B_ch_var))
+    for i in range(len(K_ch)):
+        if abs(K_ch[i]-K_ch_ave) > 3*K_ch_var:
+            print('Bad K-40 fit: peak channel = {}'.format(K_ch[i]))
+        if abs(Bi_ch[i]-B_ch_ave) > 3*B_ch_var:
+            print('Bad Bi-214 fit: peak channel = {}'.format(Bi_ch[i]))
 
     #-------------------------------------------------------------------------#
     # Get arrays of counts inside K-40 and Bi-214 peaks using fit results
@@ -468,7 +479,6 @@ if __name__ == '__main__':
     plt.ylabel('counts')
     ax.plot(times,K_counts, 'ro')
     ax.errorbar(times,K_counts,yerr=np.sqrt(K_counts),fmt='ro',ecolor='r')
-    plt.show()
 
     fig, ax = plt.subplots()
     fig.patch.set_facecolor('white')
@@ -477,7 +487,6 @@ if __name__ == '__main__':
     plt.ylabel('counts')
     ax.plot(times,Bi_counts, 'ro')
     ax.errorbar(times,Bi_counts,yerr=np.sqrt(Bi_counts),fmt='ro',ecolor='r')
-    plt.show()
 
     fig, ax = plt.subplots()
     fig.patch.set_facecolor('white')
@@ -486,16 +495,15 @@ if __name__ == '__main__':
     plt.ylabel('1460 center channel')
     ax.plot(times,K_ch, 'ro')
     ax.errorbar(times,K_ch,yerr=K_ch_errs,fmt='ro',ecolor='r')
-    plt.show()
 
     fig, ax = plt.subplots()
     fig.patch.set_facecolor('white')
     plt.title('609 Center channel vs Time')
     plt.xlabel('Time')
     plt.ylabel('609 center channel')
+    plt.ylim(B_ch_ave-10*B_ch_var,B_ch_ave+10*B_ch_var)
     ax.plot(times,Bi_ch, 'ro')
     ax.errorbar(times,Bi_ch,yerr=Bi_ch_errs,fmt='ro',ecolor='r')
-    plt.show()
 
     fig, ax = plt.subplots()
     fig.patch.set_facecolor('white')
@@ -503,10 +511,9 @@ if __name__ == '__main__':
     plt.xlabel('Time')
     plt.ylabel('keV/channel')
     #plt.ylim(4.9,5.15)
-    plt.ylim(5.6,6.0)
+    plt.ylim(4.6,6.0)
     ax.plot(times,calibs, 'bo')
     ax.errorbar(times,calibs,yerr=calib_err,fmt='bo',ecolor='b')
-    plt.show()
 
     # Finally: interested in how much the count rates vary for the two isotopes
     Bi_mean, Bi_var = get_mean(np.asarray(Bi_counts))
@@ -515,3 +522,5 @@ if __name__ == '__main__':
     K_mean, K_var = get_mean(np.asarray(K_counts))
     print('K-40 <N> = {} +/- {}'.format(K_mean,K_var))
 
+    # Show all plots - add autosave?
+    plt.show()
