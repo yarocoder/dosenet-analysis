@@ -20,7 +20,7 @@ from matplotlib.dates import date2num
 def weather_station_data_scrape(ID, date):
     '''
     Scrap weather data of given location and given period of time from websites
-    
+
     Arguments:
         - ID is a string contains weather station ID
     	- date is a 1 by 3 string array: Month/Date/Year
@@ -35,12 +35,12 @@ def weather_station_data_scrape(ID, date):
     url = str1+ID+str2+str(date.day)+str3+str(date.month)\
           +str4+str(date.year)+str5
     response = urlopen(url)
-    cr = csv.reader(response)
-    #cr=csv.reader(io.TextIOWrapper(response))
+    #cr = csv.reader(response)
+    cr=csv.reader(io.TextIOWrapper(response))
     for row in cr:
         if len(row)<= 1: continue
         data_temp.append(row)
-    
+
     #Stores data with correct data type (datetime/string/double)
     data = [[0 for i in range(len(data_temp[1][:])-3)] for j in range(len(data_temp))]
 
@@ -55,8 +55,8 @@ def weather_station_data_scrape(ID, date):
             data[i][data_temp[0][:].index('Conditions'):data_temp[0][:].index('Clouds')+1] = data_temp[i][data_temp[0][:].index('Conditions'):data_temp[0][:].index('Clouds')+1]
             data[i][data_temp[0][:].index('Clouds')+1:len(data_temp[0][:])-2] = tuple(float(list_item) for list_item in data_temp[i][data_temp[0][:].index('Clouds')+1:len(data_temp[i][:])-3])
 
-    #Select data for output array: 
-    #   (Date,Temperature, Pressure, Windspeed, Humidity, 
+    #Select data for output array:
+    #   (Date,Temperature, Pressure, Windspeed, Humidity,
     #    Hourly Precipitation, and Solar radiation)
     data_out = [[0 for i in range(7)] for j in range(len(data))]
 
@@ -66,7 +66,7 @@ def weather_station_data_scrape(ID, date):
         data_out[i][3] = data[i][6]
         data_out[i][4:6] = data[i][8:10]
         data_out[i][6] = data[i][12]
-    
+
     # remove meta data
     data_out.pop(0)
     return data_out
